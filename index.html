@@ -204,9 +204,16 @@
       const fieldLen = interpolate(elev, temp, weight);
       document.getElementById('result').innerHTML = `<b>Estimated Takeoff Field Length:</b> <span style="color:darkgreen">${fieldLen.toFixed(0)} ft</span>`;
     });
-  </script>
+ </script>
 </body>
-  <body>
+<title>Citation X Landing Distance Interpolator (15° Flaps)</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 40px; }
+    input, select { margin: 4px; }
+    .result { margin-top: 20px; font-size: 1.2em; color: #003366; }
+  </style>
+</head>
+<body>
   <h2>Citation X Landing Distance (15° Flaps) Interpolator</h2>
   <form id="interpForm">
     <label>Elevation (ft): <input type="number" id="elevation" value="1500" min="0" max="8000" step="1"></label>
