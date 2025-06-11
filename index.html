@@ -119,22 +119,31 @@
 
     <script>
         // Helper function: Finds the two bracketing values in a sorted array for a given value.
-        // If the value is outside the array, it returns the closest single value twice.
+        // It now returns null if the value is outside the array's range to prevent extrapolation.
         function bracket(arr, val) {
             // Ensure the array is sorted numerically
             arr = arr.map(Number).sort((a, b) => a - b);
-            // If the value is less than or equal to the minimum, clamp to the minimum
-            if (val <= arr[0]) return [arr[0], arr[0]];
-            // If the value is greater than or equal to the maximum, clamp to the maximum
-            if (val >= arr[arr.length - 1]) return [arr[arr.length - 1], arr[arr.length - 1]];
+
+            // If the value is strictly less than the minimum or strictly greater than the maximum,
+            // return null to indicate out-of-bounds and prevent extrapolation.
+            if (val < arr[0] || val > arr[arr.length - 1]) {
+                return null;
+            }
+
+            // If the value matches an exact point, return that point duplicated
+            if (arr.includes(val)) {
+                return [val, val];
+            }
+
             // Find the two values that bracket the input value
             for (let i = 0; i < arr.length - 1; i++) {
                 if (val >= arr[i] && val <= arr[i + 1]) {
                     return [arr[i], arr[i + 1]];
                 }
             }
-            // Fallback (should not be reached if boundary checks are correct)
-            return [arr[0], arr[0]];
+            // This part should technically not be reached if the above checks are correct,
+            // but as a fallback, return null to be safe.
+            return null;
         }
 
         // Helper function for linear interpolation between two points (x0, y0) and (x1, y1)
@@ -150,13 +159,17 @@
          * @param {number} elev - The target elevation.
          * @param {number} temp - The target temperature.
          * @param {number} weight - The target weight.
-         * @returns {number} The interpolated field length.
+         * @returns {number | null} The interpolated field length, or null if extrapolation is needed.
          */
         function interpolate(dataTable, elev, temp, weight) {
             // Step 1: Interpolate for weight at an exact elevation and exact temperature.
             function getFieldLengthAtExactET(e, t, w) {
                 const weights = Object.keys(dataTable[e][t]).map(Number).sort((a, b) => a - b);
-                const [w0, w1] = bracket(weights, w);
+                const bracketedWeights = bracket(weights, w);
+                if (!bracketedWeights) {
+                    throw new Error(`Weight ${w} lb is out of range for Temp ${t}°C and Elevation ${e} ft.`);
+                }
+                const [w0, w1] = bracketedWeights;
 
                 const v0 = dataTable[e][t][w0];
                 const v1 = dataTable[e][t][w1];
@@ -167,8 +180,14 @@
             // Step 2: Interpolate for temperature at an exact elevation and target weight.
             function getFieldLengthAtExactE(e, targetTemp, targetWeight) {
                 const temps = Object.keys(dataTable[e]).map(Number).sort((a, b) => a - b);
-                const [t0, t1] = bracket(temps, targetTemp);
+                const bracketedTemps = bracket(temps, targetTemp);
+                if (!bracketedTemps) {
+                    throw new Error(`Temperature ${targetTemp}°C is out of range for Elevation ${e} ft.`);
+                }
+                const [t0, t1] = bracketedTemps;
 
+                // Get field lengths at the bracketing temperatures for the target weight
+                // This might throw an error if the weight is out of range for T0 or T1
                 const val_t0 = getFieldLengthAtExactET(e, t0, targetWeight);
                 const val_t1 = getFieldLengthAtExactET(e, t1, targetWeight);
 
@@ -177,8 +196,14 @@
 
             // Step 3: Main interpolation: Interpolate for elevation.
             const elevs = Object.keys(dataTable).map(Number).sort((a, b) => a - b);
-            const [e0, e1] = bracket(elevs, elev);
+            const bracketedElevs = bracket(elevs, elev);
+            if (!bracketedElevs) {
+                throw new Error(`Elevation ${elev} ft is out of range.`);
+            }
+            const [e0, e1] = bracketedElevs;
 
+            // Get field lengths at the bracketing elevations for the target temperature and weight
+            // This might throw an error if temp or weight are out of range for E0 or E1
             const val_e0 = getFieldLengthAtExactE(e0, temp, weight);
             const val_e1 = getFieldLengthAtExactE(e1, temp, weight);
 
@@ -440,44 +465,6 @@
             errorDiv.textContent = '';
             errorDiv.classList.add('hidden');
 
-            // Validate inputs against the overall data ranges for takeoff
-            const allElevs = Object.keys(takeoffData).map(Number);
-            const minElev = Math.min(...allElevs);
-            const maxElev = Math.max(...allElevs);
-
-            let allTemps = new Set();
-            let allWeights = new Set();
-            for (const eKey in takeoffData) {
-                for (const tKey in takeoffData[eKey]) {
-                    allTemps.add(Number(tKey));
-                    for (const wKey in takeoffData[eKey][tKey]) {
-                        allWeights.add(Number(wKey));
-                    }
-                }
-            }
-            const minTemp = Math.min(...Array.from(allTemps));
-            const maxTemp = Math.max(...Array.from(allTemps));
-            const minWeight = Math.min(...Array.from(allWeights));
-            const maxWeight = Math.max(...Array.from(allWeights));
-
-            if (elev < minElev || elev > maxElev) {
-                errorDiv.textContent = `Elevation must be between ${minElev} ft and ${maxElev} ft for takeoff.`;
-                errorDiv.classList.remove('hidden');
-                return;
-            }
-
-            if (temp < minTemp || temp > maxTemp) {
-                errorDiv.textContent = `Temperature must be between ${minTemp}°C and ${maxTemp}°C for takeoff.`;
-                errorDiv.classList.remove('hidden');
-                return;
-            }
-
-            if (weight < minWeight || weight > maxWeight) {
-                errorDiv.textContent = `Takeoff Weight must be between ${minWeight} lb and ${maxWeight} lb.`;
-                errorDiv.classList.remove('hidden');
-                return;
-            }
-
             try {
                 // Perform interpolation
                 const fieldLen = interpolate(takeoffData, elev, temp, weight);
@@ -485,7 +472,7 @@
                 resultDiv.innerHTML = `<span class="success-message">Estimated Takeoff Field Length: ${fieldLen.toFixed(0)} ft</span>`;
             } catch (error) {
                 // Catch any errors during interpolation (e.g., if data structure is unexpected)
-                errorDiv.textContent = `An error occurred during calculation. Please check inputs. Details: ${error.message}`;
+                errorDiv.textContent = `Error: Cannot calculate. ${error.message} Please ensure inputs are within the data range.`;
                 errorDiv.classList.remove('hidden');
                 console.error("Takeoff Interpolation error:", error);
             }
@@ -507,44 +494,6 @@
             errorDiv.textContent = '';
             errorDiv.classList.add('hidden');
 
-            // Validate inputs against the overall data ranges for landing
-            const allElevs = Object.keys(landingData).map(Number);
-            const minElev = Math.min(...allElevs);
-            const maxElev = Math.max(...allElevs);
-
-            let allTemps = new Set();
-            let allWeights = new Set();
-            for (const eKey in landingData) {
-                for (const tKey in landingData[eKey]) {
-                    allTemps.add(Number(tKey));
-                    for (const wKey in landingData[eKey][tKey]) {
-                        allWeights.add(Number(wKey));
-                    }
-                }
-            }
-            const minTemp = Math.min(...Array.from(allTemps));
-            const maxTemp = Math.max(...Array.from(allTemps));
-            const minWeight = Math.min(...Array.from(allWeights));
-            const maxWeight = Math.max(...Array.from(allWeights));
-
-            if (elev < minElev || elev > maxElev) {
-                errorDiv.textContent = `Elevation must be between ${minElev} ft and ${maxElev} ft for landing.`;
-                errorDiv.classList.remove('hidden');
-                return;
-            }
-
-            if (temp < minTemp || temp > maxTemp) {
-                errorDiv.textContent = `Temperature must be between ${minTemp}°C and ${maxTemp}°C for landing.`;
-                errorDiv.classList.remove('hidden');
-                return;
-            }
-
-            if (weight < minWeight || weight > maxWeight) {
-                errorDiv.textContent = `Landing Weight must be between ${minWeight} lb and ${maxWeight} lb.`;
-                errorDiv.classList.remove('hidden');
-                return;
-            }
-
             try {
                 // Perform interpolation to get unfactored landing distance
                 const unfactoredDistance = interpolate(landingData, elev, temp, weight);
@@ -558,7 +507,7 @@
                 `;
             } catch (error) {
                 // Catch any errors during interpolation (e.g., if data structure is unexpected)
-                errorDiv.textContent = `An error occurred during calculation. Please check inputs. Details: ${error.message}`;
+                errorDiv.textContent = `Error: Cannot calculate. ${error.message} Please ensure inputs are within the data range.`;
                 errorDiv.classList.remove('hidden');
                 console.error("Landing Interpolation error:", error);
             }
