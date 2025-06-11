@@ -6,31 +6,59 @@
     <title>Citation X Flight Performance Calculators</title>
     <!-- Tailwind CSS CDN for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body {
             font-family: 'Inter', sans-serif;
-            @apply bg-gray-100 flex flex-col items-center justify-center min-h-screen p-4;
+            @apply bg-gradient-to-br from-blue-100 to-purple-200 flex flex-col items-center justify-center min-h-screen p-4;
         }
         .calculator-container {
-            @apply bg-white p-8 rounded-xl shadow-lg w-full max-w-md my-4;
+            @apply bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md my-6 transform transition-all duration-300 ease-in-out hover:scale-105 hover:shadow-3xl;
+            border: 1px solid rgba(255, 255, 255, 0.3); /* Subtle white border for depth */
+            backdrop-filter: blur(10px); /* Frosted glass effect */
+            background-color: rgba(255, 255, 255, 0.8); /* Semi-transparent background */
+        }
+        h1 {
+            @apply text-4xl font-extrabold text-gray-900 mb-10 text-center;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+        }
+        h2 {
+            @apply text-3xl font-bold text-gray-800 mb-8 text-center;
         }
         label {
-            @apply block text-gray-700 text-sm font-bold mb-2;
+            @apply block text-gray-700 text-base font-semibold mb-2;
         }
         input[type="number"] {
-            @apply shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline;
+            @apply shadow-inner appearance-none border border-gray-300 rounded-lg w-full py-3 px-4 text-gray-800 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 ease-in-out;
         }
         button {
-            @apply bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg focus:outline-none focus:shadow-outline transition duration-200 ease-in-out transform hover:scale-105;
+            @apply bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white font-bold py-3 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-white shadow-lg transition duration-200 ease-in-out transform hover:-translate-y-1 hover:shadow-xl;
         }
         .result {
-            @apply mt-6 text-center text-lg font-semibold;
+            @apply mt-8 text-center text-xl font-bold;
         }
         .error-message {
-            @apply text-red-600 font-medium mt-4;
+            @apply text-red-600 font-medium text-base mt-4 text-center;
         }
         .success-message {
-            @apply text-green-600 font-bold;
+            @apply text-green-700 font-extrabold;
+        }
+        /* Flexbox for responsiveness */
+        .flex-wrap {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 2rem; /* Consistent gap between calculators */
+        }
+        @media (min-width: 768px) {
+            .calculator-container {
+                max-width: 45%; /* Adjust width for larger screens to sit side-by-side */
+            }
+        }
+        @media (min-width: 1024px) {
+            .calculator-container {
+                max-width: 40%; /* Further adjust for very large screens */
+            }
         }
     </style>
 </head>
@@ -518,10 +546,16 @@
             }
 
             try {
-                // Perform interpolation
-                const fieldLen = interpolate(landingData, elev, temp, weight);
-                // Display the result, rounded to nearest whole number
-                resultDiv.innerHTML = `<span class="success-message">Estimated Landing Distance: ${fieldLen.toFixed(0)} ft</span>`;
+                // Perform interpolation to get unfactored landing distance
+                const unfactoredDistance = interpolate(landingData, elev, temp, weight);
+                // Calculate factored landing distance
+                const factoredDistance = unfactoredDistance * 1.667;
+
+                // Display both results, rounded to nearest whole number
+                resultDiv.innerHTML = `
+                    <p><span class="success-message">Unfactored Landing Distance: ${unfactoredDistance.toFixed(0)} ft</span></p>
+                    <p><span class="success-message">Factored Landing Distance: ${factoredDistance.toFixed(0)} ft</span></p>
+                `;
             } catch (error) {
                 // Catch any errors during interpolation (e.g., if data structure is unexpected)
                 errorDiv.textContent = `An error occurred during calculation. Please check inputs. Details: ${error.message}`;
